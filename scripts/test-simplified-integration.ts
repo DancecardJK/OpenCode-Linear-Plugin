@@ -5,7 +5,7 @@
  * and pass them to OpenCode for processing, letting OpenCode handle parsing.
  */
 
-import { webhookEventProcessor } from '../plugin/webhook-event-processor'
+import { webhookEventProcessor } from '../plugin/webhook-event-processor.js'
 
 /**
  * Create a mock webhook payload with various @opencode references
