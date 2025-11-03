@@ -42,7 +42,7 @@ export async function handleWebhook(
       type: payload.type,
       action: payload.action,
       actor: payload.actor ? ('name' in payload.actor ? payload.actor.name : 'Unknown') : 'Unknown',
-      timestamp: payload.createdAt.toISOString()
+      timestamp: new Date(payload.createdAt).toISOString()
     })
 
     // Route to appropriate handler based on entity type
