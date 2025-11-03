@@ -30,7 +30,15 @@ let linearClient: LinearClient | null = null
  * This key is required for all Linear API interactions and can be
  * obtained from Linear Settings > Account > Security > API Keys.
  */
-const apiKey = process.env.LINEAR_API_KEY
+function getApiKey(): string | undefined {
+  
+  // Check multiple possible environment variable sources
+  return process.env.LINEAR_API_KEY || 
+         process.env.LINEAR_API_KEY?.trim() ||
+         undefined
+}
+
+const apiKey = getApiKey()
 
 /**
  * Initialize Linear client if API key is available
@@ -42,12 +50,14 @@ const apiKey = process.env.LINEAR_API_KEY
 if (!apiKey) {
   console.warn("Linear Plugin: LINEAR_API_KEY environment variable not found")
   console.warn("Linear integration will be disabled until API key is provided")
+  console.warn("Set LINEAR_API_KEY in your environment or .env file")
 } else {
   try {
     linearClient = new LinearClient({ apiKey })
     console.log("Linear Plugin: Client initialized successfully")
   } catch (error) {
     console.error("Linear Plugin: Failed to initialize client:", error)
+    console.error("Linear Plugin: Check your API key format and permissions")
     linearClient = null
   }
 }
@@ -77,37 +87,49 @@ export async function getLinearClient(): Promise<LinearClient | null> {
     await linearClient.viewer
     return linearClient
 
-  } catch (error) {
-    console.warn(`Linear Plugin: Authentication validation failed:`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+} catch (error) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+  console.warn(`Linear Plugin: Authentication validation failed:`, {
+    error: errorMessage,
+    timestamp: new Date().toISOString(),
+    apiKeyPresent: !!apiKey,
+    apiKeyLength: apiKey?.length || 0
+  })
+  
+  // Check for common authentication issues
+  if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+    console.error("Linear Plugin: 401 Unauthorized - Check your API key:")
+    console.error("  1. Ensure API key is valid and not expired")
+    console.error("  2. Check API key permissions (needs read/write access)")
+    console.error("  3. Verify API key format: should start with 'lin_api_'")
+  }
+  
+  // Implement retry logic for transient authentication failures
+  // This handles cases where the token might be temporarily invalid
+  // due to network issues or Linear API rate limiting
+  try {
+    console.log("Linear Plugin: Attempting authentication retry...")
+    
+    // Wait 1 second before retry to allow for transient issues to resolve
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Retry the authentication validation
+    await linearClient.viewer
+    console.log("Linear Plugin: Authentication retry successful")
+    return linearClient
+
+  } catch (retryError) {
+    const retryErrorMessage = retryError instanceof Error ? retryError.message : 'Unknown error'
+    console.error(`Linear Plugin: Authentication retry failed:`, {
+      error: retryErrorMessage,
       timestamp: new Date().toISOString()
     })
     
-    // Implement retry logic for transient authentication failures
-    // This handles cases where the token might be temporarily invalid
-    // due to network issues or Linear API rate limiting
-    try {
-      console.log("Linear Plugin: Attempting authentication retry...")
-      
-      // Wait 1 second before retry to allow for transient issues to resolve
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Retry the authentication validation
-      await linearClient.viewer
-      console.log("Linear Plugin: Authentication retry successful")
-      return linearClient
-
-    } catch (retryError) {
-      console.error(`Linear Plugin: Authentication retry failed:`, {
-        error: retryError instanceof Error ? retryError.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      })
-      
-      // At this point, we've confirmed the authentication is genuinely failing
-      // This could be due to expired token, invalid key, or account issues
-      return null
-    }
+    // At this point, we've confirmed the authentication is genuinely failing
+    // This could be due to expired token, invalid key, or account issues
+    return null
   }
+}
 }
 
 /**
@@ -178,7 +200,8 @@ export async function reinitializeLinearClient(newApiKey: string): Promise<boole
     console.log("Linear Plugin: Reinitializing client with new API key...")
     
     // Create new client with the provided API key
-    const newClient = new LinearClient({ apiKey: newApiKey })
+    //const newClient = new LinearClient({ apiKey: newApiKey })
+    const newClient = new LinearClient({ apiKey: getApiKey() })
     
     // Validate the new client works
     await newClient.viewer

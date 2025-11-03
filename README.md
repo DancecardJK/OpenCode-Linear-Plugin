@@ -1,23 +1,46 @@
-# Linear Webhook Plugin for OpenCode
+# Linear Plugin for OpenCode
 
-A comprehensive Linear webhook integration with bidirectional OpenCode communication. This plugin provides real-time webhook processing for Linear issues, comments, and OpenCode commands with full TypeScript support, session management, and TUI integration.
+A comprehensive Linear integration plugin for OpenCode that provides CRUD operations, webhook processing, and seamless command execution from Linear issues. This plugin has been refactored for clean integration with the opencode ecosystem.
 
 ## Features
 
+### Core Plugin (`@opencode-ai/linear-plugin`)
+- **Authentication**: Secure Linear API authentication with detailed error handling
+- **Issue Management**: Create, read, update, delete Linear issues
+- **Comment Management**: Add and retrieve comments on issues
+- **Team Integration**: Auto-select teams or specify team IDs
+- **Error Handling**: Comprehensive error reporting and debugging information
+
+### Webhook Plugin (`@opencode-ai/linear-plugin/webhook`)
+- **Event Processing**: Handle Linear webhook events (issues, comments)
+- **OpenCode Integration**: Detect and execute `@opencode` commands from Linear
+- **Real-time Streaming**: Stream events to OpenCode TUI for visibility
+- **Session Management**: Support for interactive command sessions
+
+### Additional Features
 - **Dual Deployment Options**: Express server or Netlify Functions
-- **OpenCode Integration**: Bidirectional communication with OpenCode agents
-- **Session Management**: Interactive sessions for complex command workflows
-- **TUI Event Streaming**: Real-time Linear events in OpenCode interface
-- **Command Processing**: Execute OpenCode commands directly from Linear comments
 - **Type-Safe**: Full TypeScript support with Linear's official types
 - **Secure**: HMAC-SHA256 signature verification
 - **Flexible**: Full access to Linear webhook payloads
 - **Developer-Friendly**: Comprehensive tooling and documentation
 
-## Quick Start
+## Installation
 
-### 1. Installation
+### As OpenCode Plugin
+Add to your OpenCode configuration:
 
+```json
+{
+  "plugin": [
+    "@opencode-ai/linear-plugin@1.0.0"
+  ]
+}
+```
+
+### Manual Installation
+Copy the `plugin/` directory to your OpenCode plugins folder.
+
+### Development Setup
 ```bash
 # Clone or copy this directory
 cd LinearPlugin-dev
@@ -29,15 +52,30 @@ npm install
 npm run dev:setup
 ```
 
-### 2. Environment Configuration
+## Configuration
 
-Copy `.env.example` to `.env` and configure:
+Set up your Linear API key:
 
 ```bash
-# Required: Get from https://linear.app/settings/account/security
-LINEAR_API_KEY=lin_api_your_actual_api_key_here
+# Environment variable
+export LINEAR_API_KEY=lin_api_your_actual_api_key_here
 
-# Required: Generate with: openssl rand -hex 32
+# Or in .env file
+echo "LINEAR_API_KEY=lin_api_your_actual_api_key_here" >> .env
+```
+
+### Getting Your Linear API Key
+1. Go to [Linear Settings](https://linear.app/settings/account/security)
+2. Click "Create API Key"
+3. Give it a descriptive name (e.g., "OpenCode Integration")
+4. Copy the key (starts with `lin_api_`)
+5. Set it as an environment variable
+
+### Webhook Configuration (Optional)
+For webhook processing, also set up:
+
+```bash
+# Generate with: openssl rand -hex 32
 LINEAR_WEBHOOK_SECRET=your_secure_webhook_secret_here
 
 # Optional: Express server configuration
@@ -46,7 +84,110 @@ WEBHOOK_PATH=/webhooks/linear
 ENABLE_CORS=false
 ```
 
-### 3. Development
+## Usage
+
+### OpenCode Tools
+
+Once installed, the plugin provides these tools to OpenCode agents:
+
+#### Authentication
+```typescript
+// Test Linear connection
+await linear_auth()
+```
+
+#### Issue Management
+```typescript
+// Create an issue
+await linear_create_issue({
+  title: "Bug: Login fails on mobile",
+  description: "Users report login issues on mobile devices",
+  priority: 2,
+  teamId: "team-uuid"
+})
+
+// Get issue details
+await linear_get_issue({
+  issueId: "issue-uuid"
+})
+
+// Update an issue
+await linear_update_issue({
+  issueId: "issue-uuid",
+  title: "Updated title",
+  priority: 1
+})
+
+// List issues
+await linear_list_issues({ first: 10 })
+```
+
+#### Comment Management
+```typescript
+// Add a comment
+await linear_add_comment({
+  issueId: "issue-uuid",
+  body: "Working on this issue now..."
+})
+
+// List comments
+await linear_list_comments({
+  issueId: "issue-uuid",
+  first: 20
+})
+```
+
+### Webhook Integration
+
+For webhook processing, use the webhook plugin:
+
+```typescript
+import { LinearWebhookPlugin } from '@opencode-ai/linear-plugin/webhook'
+
+// Process webhook events
+await linear_webhook_process({
+  payload: webhookData
+})
+```
+
+### OpenCode Commands in Linear
+
+You can execute OpenCode commands directly from Linear issues using `@opencode`:
+
+```
+@opencode create-file src/components/NewComponent.tsx
+
+@opencode build --project=my-app
+
+@opencode deploy --env=production
+
+@opencode test --coverage
+```
+
+## Development
+
+### Local Development
+```bash
+# Install dependencies
+npm install
+
+# Run tests
+npm run test:webhook
+
+# Start development server
+npm run dev:express
+```
+
+### Testing Authentication
+```bash
+# Test Linear connection
+node -e "
+import { testLinearAuth } from './plugin/linear-auth.js';
+testLinearAuth().then(console.log);
+"
+```
+
+## Webhook Development
 
 #### Express Server (Traditional Node.js)
 ```bash
@@ -60,8 +201,7 @@ npm run dev:netlify
 # Functions run on http://localhost:8888
 ```
 
-### 4. Testing
-
+#### Testing
 ```bash
 # Test webhook endpoints with sample payloads
 npm run test:webhook
@@ -76,7 +216,7 @@ npm run test:sessions
 npm run health:express  # or health:netlify
 ```
 
-### 5. OpenCode Integration
+### OpenCode Integration Features
 
 The plugin now supports full bidirectional communication with OpenCode:
 
@@ -117,7 +257,25 @@ Execute OpenCode commands directly in Linear comments:
 
 ## Architecture
 
-### Core Components
+### Plugin Structure
+```
+plugin/
+├── index.ts              # Main OpenCode plugin
+├── webhook-plugin.ts      # Webhook processing plugin
+├── linear-auth.ts         # Authentication handling
+├── linear-crud.ts         # CRUD operations
+├── webhook-event-processor.ts  # Webhook event handling
+└── opencode-reference-detector.ts  # Command detection
+```
+
+### Key Components
+
+1. **LinearAuth**: Handles authentication with retry logic and detailed error reporting
+2. **LinearCRUD**: Provides clean CRUD operations for Linear issues and comments
+3. **WebhookEventProcessor**: Processes Linear webhooks and detects OpenCode commands
+4. **OpenCodeReferenceDetector**: Identifies `@opencode` commands in text
+
+### Webhook Components
 
 1. **Webhook Event Processor** (`plugin/webhook-event-processor.ts`)
    - Processes Linear webhook events
@@ -143,12 +301,6 @@ Execute OpenCode commands directly in Linear comments:
    - Supports event filtering and history
    - Manages TUI integration lifecycle
 
-5. **Linear CRUD Operations** (`plugin/linear-crud.ts`)
-   - Handles Linear API interactions
-   - Manages issues, comments, and responses
-   - Provides error handling and retry logic
-   - Maintains authentication and caching
-
 ### Data Flow
 
 ```
@@ -156,6 +308,25 @@ Linear Webhook → Event Processor → Command Detection → Session Management 
                      ↓
                  TUI Event Stream → OpenCode TUI Interface
 ```
+
+## Error Handling
+
+The plugin provides comprehensive error handling:
+
+### Authentication Errors
+- **401 Unauthorized**: API key issues (invalid, expired, insufficient permissions)
+- **Network Errors**: Connection problems with automatic retry
+- **Configuration Errors**: Missing or malformed environment variables
+
+### CRUD Errors
+- **Not Found**: Issue or comment doesn't exist
+- **Permission Denied**: Insufficient permissions for the operation
+- **Validation Errors**: Invalid data provided
+
+### Webhook Errors
+- **Invalid Payload**: Malformed webhook data
+- **Processing Errors**: Command execution failures
+- **Integration Errors**: OpenCode communication problems
 
 ## Current Capabilities
 
@@ -307,9 +478,24 @@ async function handleCustomIssue(payload: LinearWebhookPayload) {
 
 ### Common Issues
 
+#### "401 Unauthorized" Error
+1. Verify your API key is correct and starts with `lin_api_`
+2. Check that the API key has sufficient permissions
+3. Ensure the API key hasn't expired
+4. Verify the environment variable is set correctly
+
+#### "Constructor called without new" Error
+This has been fixed in the refactored version. The plugin now uses proper singleton patterns with error handling.
+
+#### Plugin Not Loading
+1. Ensure the plugin is properly installed in your OpenCode configuration
+2. Check that all dependencies are installed
+3. Verify the plugin exports are correct
+
+#### Webhook Issues
 **Webhook signature verification fails:**
 - Ensure `LINEAR_WEBHOOK_SECRET` matches Linear webhook configuration
-- Check that the payload is not modified before verification
+- Check that payload is not modified before verification
 
 **Server not receiving webhooks:**
 - Verify firewall settings allow incoming connections
@@ -322,9 +508,13 @@ async function handleCustomIssue(payload: LinearWebhookPayload) {
 - Verify variable names match exactly
 
 ### Debug Mode
+Enable debug logging by setting:
+```bash
+export DEBUG=linear:*
+export NODE_ENV=development
+```
 
-Enable detailed logging:
-
+For webhook development:
 ```bash
 # Express server
 ENABLE_CORS=true npm run dev:express

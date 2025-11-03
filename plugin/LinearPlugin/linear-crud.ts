@@ -300,7 +300,35 @@ export class LinearCRUD {
  * This instance is used throughout the webhook processing system
  * for creating issues, adding comments, and managing Linear data.
  */
-export const linearCRUD = new LinearCRUD()
+let _linearCRUDInstance: LinearCRUD | null = null
+
+/**
+ * Get or create the LinearCRUD singleton instance
+ * 
+ * This function ensures the LinearCRUD instance is created safely
+ * with proper error handling and initialization.
+ * 
+ * @returns LinearCRUD singleton instance
+ * @throws Error if LinearCRUD cannot be initialized
+ */
+export function getLinearCRUD(): LinearCRUD {
+  if (!_linearCRUDInstance) {
+    try {
+      _linearCRUDInstance = new LinearCRUD()
+    } catch (error) {
+      console.error("Linear Plugin: Failed to create LinearCRUD instance:", error)
+      throw new Error(`LinearCRUD initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+  return _linearCRUDInstance
+}
+
+/**
+ * Legacy export for backward compatibility
+ * 
+ * @deprecated Use getLinearCRUD() instead for better error handling
+ */
+export const linearCRUD = getLinearCRUD()
 
 /**
  * Export the LinearCRUD class as linearClient for backward compatibility
@@ -308,5 +336,7 @@ export const linearCRUD = new LinearCRUD()
  * The webhook event processor references `linearClient.addComment()`,
  * so we export the singleton instance with that name to maintain
  * compatibility while keeping the class name descriptive.
+ * 
+ * @deprecated Use getLinearCRUD() instead for better error handling
  */
-export const linearClient = linearCRUD
+export const linearClient = getLinearCRUD()

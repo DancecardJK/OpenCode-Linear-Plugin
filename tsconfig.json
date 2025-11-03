@@ -1,20 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
+    "module": "Node16",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": "./",
-    "moduleResolution": "node"
+    "moduleResolution": "node16",
+    "resolveJsonModule": true,
+    "allowJs": true
   },
   "include": [
     "plugin/**/*",
     "scripts/**/*",
-    "server/**/*"
+    "server/**/*",
+    "opencode/**/*"
   ],
   "exclude": [
     "node_modules",

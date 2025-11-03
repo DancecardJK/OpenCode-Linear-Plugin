@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@linear/sdk": "^63.2.0",
+    "@opencode-ai/plugin": "0.15.31"
+  }
+}

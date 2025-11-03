@@ -9,7 +9,7 @@
 import { OpenCodeReferenceDetector, OpenCodeReference } from './opencode-reference-detector'
 import { tuiEventStreamManager, LinearStreamEvent } from '../opencode/tui-event-stream'
 import { linearSessionManager } from '../opencode/session-manager'
-
+import { getLinearCRUD } from './linear-crud'
 /**
  * Basic webhook payload interface for processing
  * This is a minimal interface that captures the essential fields we need
@@ -316,7 +316,7 @@ export class WebhookEventProcessor {
    */
   private extractOpenCodeCommand(rawReference: string): {
     action: string
-    args: string[]
+    arguments: string[]
     options: Record<string, string>
   } {
     // Remove @opencode prefix and trim whitespace
@@ -327,7 +327,7 @@ export class WebhookEventProcessor {
     
     // First part is the action, rest are arguments
     const action = parts[0] || 'help'
-    const args: string[] = []
+    const arguments: string[] = []
     const options: Record<string, string> = {}
     
     // Parse arguments and options (key=value or --flag format)
@@ -339,11 +339,11 @@ export class WebhookEventProcessor {
       } else if (part.startsWith('--')) {
         options[part.substring(2)] = 'true'
       } else {
-        args.push(part)
+        arguments.push(part)
       }
     }
     
-    return { action, args, options }
+    return { action, arguments, options }
   }
 
   /**
@@ -462,7 +462,7 @@ export class WebhookEventProcessor {
       // Execute the command with full context
       const result = await executeOpenCodeAgent({
         action: command.action,
-        arguments: command.args,
+        arguments: command.arguments,
         options: command.options,
         context: context,
         source: 'linear-webhook'
@@ -500,13 +500,13 @@ export class WebhookEventProcessor {
   ): Promise<void> {
     try {
       // Import Linear CRUD operations
-      const { linearClient } = await import('./linear-crud')
+      const crud = getLinearCRUD()
       
       // Format response message
       const responseMessage = this.formatResponseMessage(result, reference)
       
       // Add comment to the Linear issue
-      await linearClient.addComment(context.payload.data.issueId, responseMessage)
+      await crud.addComment(context.payload.data.issueId, responseMessage)
       
       console.log(`Response posted to Linear issue:`, {
         issueId: context.payload.data.issueId,
@@ -564,7 +564,7 @@ export class WebhookEventProcessor {
    * @param command - Parsed command to evaluate
    * @returns True if command should create a session
    */
-  private shouldCreateSession(command: { action: string; args: string[]; options: Record<string, string> }): boolean {
+  private shouldCreateSession(command: { action: string; arguments: string[]; options: Record<string, string> }): boolean {
     // Commands that typically benefit from session context
     const sessionCommands = [
       'create-file',
@@ -587,7 +587,7 @@ export class WebhookEventProcessor {
     }
     
     // Commands with multiple arguments might benefit from sessions
-    if (command.args.length > 2) {
+    if (command.arguments.length > 2) {
       return true
     }
     
@@ -612,13 +612,13 @@ export class WebhookEventProcessor {
     sessionId: string
   ): Promise<void> {
     try {
-      const { linearClient } = await import('./linear-crud')
+      const crud = getLinearCRUD()
       
       // Format response with session information
       const responseMessage = this.formatSessionResponseMessage(result, reference, sessionId)
       
       // Add comment to the Linear issue
-      await linearClient.addComment(context.payload.data.issueId, responseMessage)
+      await crud.addComment(context.payload.data.issueId, responseMessage)
       
       console.log(`Session-based response posted to Linear:`, {
         issueId: context.payload.data.issueId,
@@ -692,7 +692,7 @@ export class WebhookEventProcessor {
     reference: import('./opencode-reference-detector').OpenCodeReference
   ): Promise<void> {
     try {
-      const { linearClient } = await import('./linear-crud')
+      const crud = getLinearCRUD()
       
       const errorMessage = `**❌ Processing Error**\n\n` +
         `Failed to process command: \`${reference.raw}\`\n\n` +
@@ -700,7 +700,7 @@ export class WebhookEventProcessor {
         `*Please check the command syntax and try again.*\n\n` +
         `*Error occurred at ${new Date().toISOString()}*`
       
-      await linearClient.addComment(context.payload.data.issueId, errorMessage)
+      await crud.addComment(context.payload.data.issueId, errorMessage)
       
     } catch (notifyError) {
       console.error(`Failed to notify Linear about processing error:`, notifyError)
