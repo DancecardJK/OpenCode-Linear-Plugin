@@ -1,10 +1,14 @@
 # Linear Webhook Plugin for OpenCode
 
-A comprehensive Linear webhook integration that supports both Express and Netlify Functions deployments. This plugin provides real-time webhook processing for Linear issues, comments, and other events with full TypeScript support and security features.
+A comprehensive Linear webhook integration with bidirectional OpenCode communication. This plugin provides real-time webhook processing for Linear issues, comments, and OpenCode commands with full TypeScript support, session management, and TUI integration.
 
 ## Features
 
 - **Dual Deployment Options**: Express server or Netlify Functions
+- **OpenCode Integration**: Bidirectional communication with OpenCode agents
+- **Session Management**: Interactive sessions for complex command workflows
+- **TUI Event Streaming**: Real-time Linear events in OpenCode interface
+- **Command Processing**: Execute OpenCode commands directly from Linear comments
 - **Type-Safe**: Full TypeScript support with Linear's official types
 - **Secure**: HMAC-SHA256 signature verification
 - **Flexible**: Full access to Linear webhook payloads
@@ -62,9 +66,128 @@ npm run dev:netlify
 # Test webhook endpoints with sample payloads
 npm run test:webhook
 
+# Test OpenCode integration
+npm run test:opencode
+
+# Test session management
+npm run test:sessions
+
 # Check server health
 npm run health:express  # or health:netlify
 ```
+
+### 5. OpenCode Integration
+
+The plugin now supports full bidirectional communication with OpenCode:
+
+#### OpenCode Commands in Linear
+Execute OpenCode commands directly in Linear comments:
+
+```bash
+# Create a new file
+@opencode create-file component.ts --typescript
+
+# Run tests
+@opencode run-tests --verbose
+
+# Get help
+@opencode help
+
+# Start an interactive session
+@opencode create-file app.ts --session=auto
+```
+
+#### Session Management
+- Commands automatically create sessions for complex workflows
+- Sessions maintain context across multiple commands
+- Use `--session=<id>` to continue existing sessions
+- Sessions expire after 1 hour of inactivity
+
+#### TUI Integration
+- Real-time Linear events stream to OpenCode TUI
+- Event filtering and history management
+- Interactive session monitoring
+- Command execution tracking
+
+#### Response Handling
+- Automatic response posting to Linear issues
+- Rich formatting with code blocks and status indicators
+- Error handling and recovery notifications
+- Session continuation options
+
+## Architecture
+
+### Core Components
+
+1. **Webhook Event Processor** (`plugin/webhook-event-processor.ts`)
+   - Processes Linear webhook events
+   - Detects OpenCode references in comments
+   - Routes commands to appropriate handlers
+   - Manages session creation and lifecycle
+
+2. **OpenCode Agent Executor** (`opencode/agent-executor.ts`)
+   - Bridges Linear events with OpenCode agents
+   - Handles command parsing and execution
+   - Manages agent selection and routing
+   - Provides standardized response formatting
+
+3. **Session Manager** (`opencode/session-manager.ts`)
+   - Manages interactive OpenCode sessions
+   - Maintains context across multiple commands
+   - Handles session lifecycle and cleanup
+   - Provides session persistence and recovery
+
+4. **TUI Event Stream** (`opencode/tui-event-stream.ts`)
+   - Streams Linear events to OpenCode TUI
+   - Provides real-time event visibility
+   - Supports event filtering and history
+   - Manages TUI integration lifecycle
+
+5. **Linear CRUD Operations** (`plugin/linear-crud.ts`)
+   - Handles Linear API interactions
+   - Manages issues, comments, and responses
+   - Provides error handling and retry logic
+   - Maintains authentication and caching
+
+### Data Flow
+
+```
+Linear Webhook → Event Processor → Command Detection → Session Management → OpenCode Agent → Response Handling → Linear Comment
+                     ↓
+                 TUI Event Stream → OpenCode TUI Interface
+```
+
+## Current Capabilities
+
+✅ **Core Integration**
+- Linear webhook event processing with full payload access
+- OpenCode command detection and parsing in Linear comments
+- Bidirectional communication with OpenCode agents
+- Automatic response posting to Linear issues with rich formatting
+
+✅ **Session Management**
+- Interactive session creation for complex workflows
+- Context preservation across multiple commands
+- Session lifecycle management (create, activate, pause, resume, complete)
+- Session persistence with automatic cleanup after 1 hour of inactivity
+
+✅ **TUI Integration**
+- Real-time Linear event streaming to OpenCode TUI
+- Event filtering by type, severity, and content
+- Event history management with configurable retention
+- Interactive session monitoring and command tracking
+
+✅ **Command Processing**
+- Support for various OpenCode commands (create-file, run-tests, help, status, etc.)
+- Intelligent command argument parsing with quoted string support
+- Command-specific agent routing and execution
+- Comprehensive error handling and recovery mechanisms
+
+✅ **Developer Experience**
+- Comprehensive logging with structured output
+- Health check endpoints for monitoring
+- Integration testing suite with mock payloads
+- Clear documentation with practical examples
 
 ## Deployment Options
 
@@ -74,6 +197,7 @@ Best for:
 - Full control over server environment
 - Custom middleware and processing
 - Self-hosting on your infrastructure
+- Development and testing
 
 **Production Deployment:**
 ```bash
@@ -92,6 +216,7 @@ Best for:
 - Serverless deployment
 - Auto-scaling and pay-per-use
 - Quick production setup
+- Minimal infrastructure management
 
 **Production Deployment:**
 1. Connect your repository to Netlify
