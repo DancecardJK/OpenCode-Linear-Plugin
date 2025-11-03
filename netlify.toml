@@ -1,0 +1,76 @@
+# Netlify Configuration for Linear Webhook Server
+# 
+# This file configures how Netlify handles your Linear webhook functions.
+# It defines routing, environment variables, and build settings.
+
+[build]
+  # Directory containing your serverless functions
+  functions = "server"
+  
+  # Command to build your project (if needed)
+  # command = "npm run build"
+  
+  # Directory containing static files (if any)
+  # publish = "public"
+
+# Redirect webhook requests to our Netlify Function
+# This makes the webhook endpoint clean and user-friendly
+[[redirects]]
+  from = "/webhooks/linear"
+  to = "/.netlify/functions/webhook-server-netlify"
+  status = 200
+  force = true
+
+# Health check endpoint redirect
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/webhook-server-netlify"
+  status = 200
+  force = true
+
+# Info endpoint redirect  
+[[redirects]]
+  from = "/info"
+  to = "/.netlify/functions/webhook-server-netlify"
+  status = 200
+  force = true
+
+# Root endpoint redirect
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/webhook-server-netlify"
+  status = 200
+  force = true
+
+# Environment variables for production
+# These should be set in Netlify dashboard for security
+[build.environment]
+  NODE_VERSION = "18"
+
+# Headers for security and CORS
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Headers for webhook endpoint
+[[headers]]
+  for = "/webhooks/linear"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Headers for API endpoints
+[[headers]]
+  for = "/health"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/info"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "no-cache, no-store, must-revalidate"
