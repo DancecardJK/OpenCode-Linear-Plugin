@@ -38,7 +38,7 @@ export async function handleWebhook(
 ): Promise<HandlerResponse> {
   try {
     // Log basic webhook info - developers have full access to payload
-    console.log(`🔔 Linear Webhook: ${payload.type} ${payload.action}`, {
+    console.log(` Linear Webhook: ${payload.type} ${payload.action}`, {
       type: payload.type,
       action: payload.action,
       actor: payload.actor ? ('name' in payload.actor ? payload.actor.name : 'Unknown') : 'Unknown',
@@ -60,7 +60,7 @@ export async function handleWebhook(
         }
     }
   } catch (error) {
-    console.error('❌ Webhook processing failed:', error)
+    console.error(' Webhook processing failed:', error)
     return {
       success: false,
       message: 'Webhook processing failed',
@@ -106,7 +106,7 @@ async function handleIssueEvent(payload: LinearWebhookPayload): Promise<HandlerR
     previousAssignee: updatedFrom?.assignee?.name
   }
 
-  console.log(`📋 Issue ${payload.action}:`, issueInfo)
+  console.log(` Issue ${payload.action}:`, issueInfo)
 
   // Example custom filtering logic developers can implement:
   // if (issueData.priority === 'urgent' && payload.action === 'create') {
@@ -159,7 +159,7 @@ async function handleCommentEvent(payload: LinearWebhookPayload): Promise<Handle
     resolvedAt: commentData.resolvedAt
   }
 
-  console.log(`💬 Comment ${payload.action}:`, {
+  console.log(` Comment ${payload.action}:`, {
     ...commentInfo,
     body: commentInfo.body?.substring(0, 100) + (commentInfo.body?.length > 100 ? '...' : '') // Truncate for logging
   })

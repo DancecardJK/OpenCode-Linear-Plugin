@@ -40,7 +40,7 @@ function createApp(): express.Application {
 
   // Request logging middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
-    console.log(`📥 ${req.method} ${req.path} - ${new Date().toISOString()}`)
+    console.log(` ${req.method} ${req.path} - ${new Date().toISOString()}`)
     next()
   })
 
@@ -68,13 +68,13 @@ function createApp(): express.Application {
       const payload = req.body.toString() // Convert Buffer to string
       
       if (!signature) {
-        console.error('❌ Missing Linear signature header')
+        console.error(' Missing Linear signature header')
         res.status(401).json({ error: 'Missing signature' })
         return
       }
 
       if (!verifyWebhookSignature(payload, signature, config.webhookSecret)) {
-        console.error('❌ Invalid webhook signature')
+        console.error(' Invalid webhook signature')
         res.status(401).json({ error: 'Invalid signature' })
         return
       }
@@ -84,7 +84,7 @@ function createApp(): express.Application {
       req.body = webhookPayload // Replace raw body with parsed payload
       next()
     } catch (error) {
-      console.error('❌ Webhook processing error:', error)
+      console.error(' Webhook processing error:', error)
       res.status(400).json({ error: 'Invalid webhook payload' })
     }
   })
@@ -126,7 +126,7 @@ function setupRoutes(app: express.Application): void {
         })
       }
     } catch (error) {
-      console.error('❌ Webhook handler error:', error)
+      console.error(' Webhook handler error:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -194,7 +194,7 @@ function setupRoutes(app: express.Application): void {
 function startServer(): express.Application {
   // Validate configuration
   if (!config.webhookSecret) {
-    console.warn('⚠️  WARNING: LINEAR_WEBHOOK_SECRET not set - signature verification disabled')
+    console.warn('  WARNING: LINEAR_WEBHOOK_SECRET not set - signature verification disabled')
     console.warn('   Set this environment variable for production use')
   }
 
@@ -204,13 +204,13 @@ function startServer(): express.Application {
 
   // Start server
   app.listen(config.port, () => {
-    console.log('🚀 Linear Webhook Server (Express) started successfully!')
+    console.log(' Linear Webhook Server (Express) started successfully!')
     console.log(`📍 Server: http://localhost:${config.port}`)
-    console.log(`🔗 Webhook: POST http://localhost:${config.port}${config.webhookPath}`)
-    console.log(`💚 Health: GET http://localhost:${config.port}/health`)
-    console.log(`ℹ️  Info: GET http://localhost:${config.port}/info`)
+    console.log(` Webhook: POST http://localhost:${config.port}${config.webhookPath}`)
+    console.log(` Health: GET http://localhost:${config.port}/health`)
+    console.log(`  Info: GET http://localhost:${config.port}/info`)
     console.log('')
-    console.log('📋 Setup Instructions:')
+    console.log(' Setup Instructions:')
     console.log(`1. Configure Linear webhook URL: http://localhost:${config.port}${config.webhookPath}`)
     console.log('2. Set webhook secret to match your LINEAR_WEBHOOK_SECRET')
     console.log('3. Test with: curl http://localhost:' + config.port + '/health')

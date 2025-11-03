@@ -35,7 +35,7 @@ const config = {
  */
 function debugLog(message: string, data?: any): void {
   if (config.enableDebug) {
-    console.log(`🔍 DEBUG: ${message}`, data || '')
+    console.log(` DEBUG: ${message}`, data || '')
   }
 }
 
@@ -74,7 +74,7 @@ export async function handler(
         }
     }
   } catch (error) {
-    console.error('❌ Netlify Function error:', error)
+    console.error(' Netlify Function error:', error)
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -103,7 +103,7 @@ async function handleWebhookRequest(event: HandlerEvent): Promise<HandlerRespons
   const signature = extractSignature(event.headers as Record<string, string>)
   
   if (!signature) {
-    console.error('❌ Missing Linear signature header')
+    console.error(' Missing Linear signature header')
     return {
       statusCode: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -112,7 +112,7 @@ async function handleWebhookRequest(event: HandlerEvent): Promise<HandlerRespons
   }
 
   if (!verifyWebhookSignature(event.body, signature, config.webhookSecret)) {
-    console.error('❌ Invalid webhook signature')
+    console.error(' Invalid webhook signature')
     return {
       statusCode: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -137,7 +137,7 @@ async function handleWebhookRequest(event: HandlerEvent): Promise<HandlerRespons
       })
     }
   } catch (parseError) {
-    console.error('❌ Failed to parse webhook payload:', parseError)
+    console.error(' Failed to parse webhook payload:', parseError)
     return {
       statusCode: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -231,7 +231,7 @@ function handleRootRequest(): HandlerResponse {
  * Usage: netlify functions serve
  */
 export async function localTest(event: HandlerEvent): Promise<HandlerResponse> {
-  console.log('🧪 Local test function called')
+  console.log(' Local test function called')
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
