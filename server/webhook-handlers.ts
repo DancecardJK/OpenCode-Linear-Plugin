@@ -1,144 +1,262 @@
 /**
  * Linear Webhook Event Handlers
  * 
- * This file contains example handlers for Linear webhook events.
- * Developers get full access to the complete LinearWebhookPayload and can
- * filter/process any data they need without abstraction layers.
+ * Provides comprehensive webhook event processing for Linear with full OpenCode integration.
+ * This module serves as the central routing layer that directs incoming Linear webhook
+ * events to appropriate handlers while maintaining consistent error handling and logging.
  * 
- * Architecture:
- * - Example handlers show common patterns for Issue and Comment events
- * - Developers can create their own handlers with full payload access
- * - All handlers follow the same response interface for consistency
- * - Error handling is centralized to ensure robustness
- * - OpenCode reference detection is integrated via WebhookEventProcessor
+ * Key Features:
+ * - Full access to complete Linear webhook payloads without abstraction
+ * - Integrated OpenCode reference detection and processing
+ * - Consistent response interface across all handlers
+ * - Comprehensive error handling and recovery
+ * - Extensible architecture for custom event handlers
+ * - Real-time event streaming to OpenCode TUI
+ * 
+ * Architecture Pattern:
+ * 1. Webhook Reception → 2. Event Routing → 3. Handler Processing → 4. OpenCode Integration → 5. Response
  */
 
 import type { LinearWebhookPayload } from './types/linear-webhook-types'
 import { webhookEventProcessor } from '../plugin/webhook-event-processor'
 
 /**
- * Handler response interface
- * All handlers should return this structure for consistent processing
+ * Standardized handler response interface
+ * 
+ * All webhook handlers must return this structure to ensure consistent
+ * processing and response formatting. This interface enables proper
+ * error handling, logging, and HTTP response generation.
  */
 export interface HandlerResponse {
+  /** Indicates whether the handler processed the event successfully */
   success: boolean
+  /** Human-readable message describing the processing result */
   message: string
+  /** Optional data payload for additional context or debugging */
   data?: any
+  /** Error details if processing failed (null/undefined on success) */
   error?: string
 }
 
 /**
- * Main webhook dispatcher
- * Routes webhook payloads to the appropriate handler based on entity type
+ * Main webhook event dispatcher and router
  * 
- * Developers can modify this to add their own entity types and handlers
- * or bypass this entirely and handle payloads directly
+ * Serves as the central entry point for all Linear webhook events.
+ * Routes incoming payloads to appropriate specialized handlers based on
+ * the event type and action. Provides comprehensive logging and error handling
+ * while maintaining the flexibility for developers to add custom handlers.
+ * 
+ * The dispatcher follows a fail-safe approach where even if a specific
+ * handler fails, the webhook processing continues and returns a successful
+ * HTTP response to Linear to prevent webhook delivery failures.
+ * 
+ * @param payload - Complete Linear webhook payload with event data
+ * @returns Standardized handler response with processing results
  */
 export async function handleWebhook(
   payload: LinearWebhookPayload
 ): Promise<HandlerResponse> {
   try {
-    // Log basic webhook info - developers have full access to payload
-    console.log(` Linear Webhook: ${payload.type} ${payload.action}`, {
+    // Log comprehensive webhook information for debugging and monitoring
+    // This provides full visibility into incoming webhook events
+    console.log(`Linear Webhook Received: ${payload.type} ${payload.action}`, {
       type: payload.type,
       action: payload.action,
       actor: payload.actor ? ('name' in payload.actor ? payload.actor.name : 'Unknown') : 'Unknown',
-      timestamp: new Date(payload.createdAt).toISOString()
+      timestamp: new Date(payload.createdAt).toISOString(),
+      entityId: payload.data?.id,
+      url: payload.url
     })
 
-    // Route to appropriate handler based on entity type
+    // Route to specialized handlers based on entity type
+    // This switch statement can be extended to support additional Linear entity types
     switch (payload.type) {
-      case 'Issue':
+case 'Issue':
         return handleIssueEvent(payload)
       
       case 'Comment':
         return handleCommentEvent(payload)
       
+      // Support for additional Linear entity types can be added here
+      // Examples: 'Project', 'Team', 'Label', 'WorkflowState', etc.
+      
       default:
+        // Return success for unknown event types to prevent webhook delivery failures
+        // This ensures Linear doesn't disable webhooks due to unhandled events
+        console.log(`No handler configured for ${payload.type} events - skipping processing`)
         return {
           success: true,
-          message: `No handler for ${payload.type} events (developers can add custom handlers)`
+          message: `No handler for ${payload.type} events (developers can add custom handlers)`,
+          data: {
+            eventType: payload.type,
+            action: payload.action,
+            note: 'Event was received but no specific handler was configured'
+          }
         }
     }
   } catch (error) {
-    console.error(' Webhook processing failed:', error)
+    // Centralized error handling prevents webhook delivery failures
+    // Even if processing fails, we return a successful HTTP response to Linear
+    console.error('Webhook processing failed:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      eventType: payload.type,
+      action: payload.action,
+      timestamp: new Date().toISOString()
+    })
+    
     return {
-      success: false,
-      message: 'Webhook processing failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      success: false, // Internal processing failed
+      message: 'Webhook processing failed but delivery was successful',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      data: {
+        eventType: payload.type,
+        action: payload.action,
+        note: 'Linear webhook was delivered successfully but internal processing failed'
+      }
     }
   }
 }
 
 /**
- * Issue event handler with webhook event processor integration
- * Shows how to access the full Linear webhook payload for Issue events
- * and integrates with the webhook event processing system
+ * Issue event handler with comprehensive processing integration
  * 
- * Developers can:
- * - Access any property from the full payload (payload.data, payload.updatedFrom, etc.)
- * - Filter by any criteria (state, assignee, priority, labels, etc.)
+ * Handles all Linear issue-related webhook events including creation,
+ * updates, state changes, and assignments. This handler provides
+ * full access to the complete webhook payload and integrates with
+ * the centralized event processing system for OpenCode integration.
+ * 
+ * Supported Issue Events:
+ * - create: New issue creation
+ * - update: Issue modifications (title, description, state, etc.)
+ * - remove: Issue deletion
+ * - assign: Assignment changes
+ * 
+ * Developer Capabilities:
+ * - Access complete payload including previous values (updatedFrom)
+ * - Filter by any issue criteria (state, priority, labels, assignee)
  * - Trigger custom workflows based on specific conditions
- * - Process events through the centralized event processor
+ * - Integrate with external systems via the event processor
+ * 
+ * @param payload - Linear webhook payload for Issue events
+ * @returns Handler response with processing results and issue information
  */
 async function handleIssueEvent(payload: LinearWebhookPayload): Promise<HandlerResponse> {
+  // Validate payload type to ensure proper routing
   if (payload.type !== 'Issue') {
     return {
       success: false,
-      message: 'Invalid issue webhook payload'
+      message: 'Invalid issue webhook payload - type mismatch',
+      error: `Expected type 'Issue', received '${payload.type}'`
     }
   }
 
-  // Full access to the complete Linear webhook payload
+  // Extract complete issue data from the webhook payload
   const issueData = payload.data
-  const updatedFrom = payload.updatedFrom // Previous values for update events
+  const updatedFrom = payload.updatedFrom // Contains previous values for update events
   
-  // Example: Extract key information for logging and processing
+  // Compile comprehensive issue information for logging and downstream processing
+  // This provides a complete snapshot of the issue state at the time of the event
   const issueInfo = {
+    // Core issue identifiers
     id: issueData.id,
-    identifier: issueData.identifier, // e.g., "ENG-123"
+    identifier: issueData.identifier, // Human-readable ID like "ENG-123"
     title: issueData.title,
-    description: issueData.description?.substring(0, 100) + (issueData.description?.length > 100 ? '...' : ''),
+    
+    // Description handling with length limits for logging
+    description: issueData.description 
+      ? (issueData.description.length > 100 
+          ? issueData.description.substring(0, 100) + '...' 
+          : issueData.description)
+      : 'No description',
+    
+    // State and workflow information
     state: issueData.state?.name || 'Unknown',
+    previousState: updatedFrom?.state?.name, // Previous state for update events
+    
+    // Assignment information
     assignee: issueData.assignee?.name || 'Unassigned',
+    previousAssignee: updatedFrom?.assignee?.name,
+    
+    // Priority and classification
     priority: issueData.priority || 'No priority',
+    
+    // Labels and categorization
     labels: issueData.labels?.map((label: any) => label.name) || [],
+    
+    // Metadata and links
     url: issueData.url || 'No URL',
-    // Access previous values for update events
-    previousState: updatedFrom?.state?.name,
-    previousAssignee: updatedFrom?.assignee?.name
+    createdAt: issueData.createdAt,
+    updatedAt: issueData.updatedAt,
+    
+    // Event-specific information
+    action: payload.action,
+    actor: payload.actor?.name || 'Unknown'
   }
 
-  console.log(` Issue ${payload.action}:`, issueInfo)
+  // Log detailed issue information for monitoring and debugging
+  console.log(`Processing Issue ${payload.action}:`, {
+    identifier: issueInfo.identifier,
+    title: issueInfo.title,
+    state: issueInfo.state,
+    assignee: issueInfo.assignee,
+    actor: issueInfo.actor
+  })
 
-  // Process the issue event through the centralized processor
+  // Process the issue event through the centralized event processor
+  // This enables OpenCode integration, TUI streaming, and session management
   const processResult = await webhookEventProcessor.processIssueEvent(payload)
   
+  // Handle processing errors gracefully while maintaining webhook delivery success
   if (!processResult.success) {
-    console.error('❌ Issue event processing failed:', processResult.error)
-    // Still return success for the webhook, but note the processing error
+    console.error('Issue event processing failed:', {
+      error: processResult.error,
+      issueId: issueInfo.id,
+      action: payload.action
+    })
+    
+    // Return success for webhook delivery but note the internal processing failure
+    // This prevents Linear from disabling the webhook due to processing issues
     return {
       success: true,
-      message: `Issue ${payload.action} processed (event processing failed)`,
+      message: `Issue ${payload.action} received (event processing failed)`,
       data: {
         ...issueInfo,
         eventProcessed: false,
-        eventError: processResult.error
+        eventError: processResult.error,
+        note: 'Webhook was delivered successfully but OpenCode processing failed'
       }
     }
   }
 
-  // Example custom filtering logic developers can implement:
-  // if (issueData.priority === 'urgent' && payload.action === 'create') {
-  //   await sendUrgentNotification(issueInfo)
-  // }
+  // Example of custom business logic that developers can implement
+  // This demonstrates how to trigger workflows based on specific conditions
+  /*
+  if (issueData.priority === 'urgent' && payload.action === 'create') {
+    await sendUrgentNotification({
+      issue: issueInfo,
+      action: 'urgent_issue_created',
+      timestamp: new Date().toISOString()
+    })
+  }
+  
+  if (updatedFrom?.state?.name !== issueData.state?.name) {
+    await notifyStateChange({
+      issue: issueInfo,
+      previousState: updatedFrom.state.name,
+      newState: issueData.state.name,
+      changedBy: payload.actor.name
+    })
+  }
+  */
   
   return {
     success: true,
     message: `Issue ${payload.action} processed successfully`,
     data: {
       ...issueInfo,
-      eventProcessed: processResult.processed
+      eventProcessed: processResult.processed,
+      processingTime: processResult.context?.metadata?.processedAt
     }
   }
 }
