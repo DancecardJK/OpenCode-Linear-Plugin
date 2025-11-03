@@ -6,7 +6,7 @@
  * in comment events and processes them appropriately.
  */
 
-import { webhookEventProcessor } from '../plugin/webhook-event-processor'
+import { webhookEventProcessor } from '../plugin/LinearPlugin/webhook-event-processor'
 
 // Mock webhook payloads for testing
 const mockCommentPayloadWithOpenCode = {

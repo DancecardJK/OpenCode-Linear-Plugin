@@ -5,7 +5,7 @@
  * This validates that the core OpenCode detection and processing logic works.
  */
 
-import { webhookEventProcessor } from '../plugin/webhook-event-processor'
+import { webhookEventProcessor } from '../plugin/LinearPlugin/webhook-event-processor'
 
 /**
  * Create a minimal mock payload for testing

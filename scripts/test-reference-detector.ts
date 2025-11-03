@@ -4,7 +4,7 @@
  * Tests the basic @opencode mention detection functionality
  */
 
-import { opencodeReferenceDetector } from '../plugin/opencode-reference-detector'
+import { opencodeReferenceDetector } from '../plugin/LinearPlugin/opencode-reference-detector'
 
 async function testReferenceDetector() {
   console.log('🧪 Testing OpenCode Reference Detector...\n')

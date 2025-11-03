@@ -9,7 +9,7 @@
  * for both issues and comments, with proper cleanup at the end.
  */
 
-import { linearCRUD } from '../plugin/linear-crud'
+import { linearCRUD } from '../plugin/LinearPlugin/linear-crud'
 
 async function testCRUD() {
   console.log('🧪 Testing Linear CRUD Operations...\n')

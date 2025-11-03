@@ -5,7 +5,7 @@
  * without complex webhook payload structures.
  */
 
-import { OpenCodeReferenceDetector } from '../plugin/opencode-reference-detector'
+import { OpenCodeReferenceDetector } from '../plugin/LinearPlugin/opencode-reference-detector'
 
 /**
  * Test OpenCode reference detection directly
