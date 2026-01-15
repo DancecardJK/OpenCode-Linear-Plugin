@@ -36,6 +36,8 @@ export const LinearPlugin: Plugin = async (ctx) => {
           description: z.string().optional().describe("Issue description (optional)"),
           teamId: z.string().optional().describe("Team ID (optional, will auto-select if not provided)"),
           assigneeId: z.string().optional().describe("Assignee ID (optional)"),
+          stateId: z.string().optional().describe("Workflow state ID (optional)"),
+          labelIds: z.array(z.string()).optional().describe("Array of label IDs (optional)"),
           priority: z.number().min(1).max(4).optional().describe("Priority 1-4 (optional)")
         },
         async execute(args, context) {
@@ -70,18 +72,38 @@ export const LinearPlugin: Plugin = async (ctx) => {
           try {
             const crud = getLinearCRUD()
             const issue = await crud.getIssue(args.issueId)
-            return JSON.stringify(issue ? {
+            if (!issue) {
+              return JSON.stringify({
+                success: false,
+                error: "Issue not found"
+              })
+            }
+            
+            // Fetch labels for the issue
+            const labels = await issue.labels()
+            
+            return JSON.stringify({
               success: true,
               id: issue.id,
               identifier: issue.identifier,
               title: issue.title,
               description: issue.description,
-              status: issue.state?.name || 'Unknown',
-              assignee: issue.assignee?.name || 'Unassigned',
+              state: issue.state ? {
+                id: issue.state.id,
+                name: issue.state.name,
+                type: issue.state.type,
+                color: issue.state.color
+              } : null,
+              assignee: issue.assignee ? {
+                id: issue.assignee.id,
+                name: issue.assignee.name
+              } : null,
+              labels: labels.nodes.map(label => ({
+                id: label.id,
+                name: label.name,
+                color: label.color
+              })),
               url: issue.url
-            } : {
-              success: false,
-              error: "Issue not found"
             })
           } catch (error) {
             return {
@@ -99,6 +121,8 @@ export const LinearPlugin: Plugin = async (ctx) => {
           title: z.string().optional().describe("New title (optional)"),
           description: z.string().optional().describe("New description (optional)"),
           assigneeId: z.string().optional().describe("New assignee ID (optional)"),
+          stateId: z.string().optional().describe("New workflow state ID (optional)"),
+          labelIds: z.array(z.string()).optional().describe("New array of label IDs (optional)"),
           priority: z.number().min(1).max(4).optional().describe("New priority 1-4 (optional)")
         },
         async execute(args, context) {
@@ -202,6 +226,63 @@ export const LinearPlugin: Plugin = async (ctx) => {
                 createdAt: comment.createdAt
               })),
               count: comments.length
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_list_states: tool({
+        description: "List workflow states (statuses) for a team",
+        args: {
+          teamId: z.string().optional().describe("Team ID (optional, will auto-select if not provided)")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const states = await crud.listStates(args.teamId)
+            return JSON.stringify({
+              success: true,
+              states: states.map(state => ({
+                id: state.id,
+                name: state.name,
+                type: state.type,
+                color: state.color,
+                description: state.description
+              })),
+              count: states.length
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_list_labels: tool({
+        description: "List issue labels for a team",
+        args: {
+          teamId: z.string().optional().describe("Team ID (optional, will auto-select if not provided)")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const labels = await crud.listLabels(args.teamId)
+            return JSON.stringify({
+              success: true,
+              labels: labels.map(label => ({
+                id: label.id,
+                name: label.name,
+                color: label.color,
+                description: label.description
+              })),
+              count: labels.length
             })
           } catch (error) {
             return {

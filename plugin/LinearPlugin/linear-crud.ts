@@ -12,7 +12,7 @@
  * - Keep error handling simple and informative
  */
 
-import { LinearClient, Issue, Comment } from '@linear/sdk'
+import { LinearClient, Issue, Comment, WorkflowState, IssueLabel } from '@linear/sdk'
 import { getLinearClient } from './linear-auth'
 
 export class LinearCRUD {
@@ -289,6 +289,66 @@ export class LinearCRUD {
     if (!issue) throw new Error(`Issue ${issueId} not found`)
     const comments = await client.comments({ first, filter: { issue: { id: { eq: issueId } } } })
     return comments.nodes.map(node => node)
+  }
+
+  // ==================== WORKFLOW STATE OPERATIONS ====================
+
+  /**
+   * List workflow states for a team
+   * 
+   * Retrieves all available workflow states (statuses) for a team.
+   * If no teamId is provided, uses the first available team.
+   * 
+   * @param teamId - Team ID (optional, will auto-select if not provided)
+   * @returns Array of workflow states
+   */
+  async listStates(teamId?: string): Promise<WorkflowState[]> {
+    const client = await this.getClient()
+    
+    // Get team - use provided or auto-select first available
+    let team
+    if (teamId) {
+      team = await client.team(teamId)
+    } else {
+      const teams = await client.teams({ first: 1 })
+      team = teams.nodes[0]
+    }
+    
+    if (!team) throw new Error('No team found')
+    
+    // Get workflow states for the team
+    const states = await team.states()
+    return states.nodes.map(node => node)
+  }
+
+  // ==================== LABEL OPERATIONS ====================
+
+  /**
+   * List issue labels for a team
+   * 
+   * Retrieves all available issue labels for a team.
+   * If no teamId is provided, uses the first available team.
+   * 
+   * @param teamId - Team ID (optional, will auto-select if not provided)
+   * @returns Array of issue labels
+   */
+  async listLabels(teamId?: string): Promise<IssueLabel[]> {
+    const client = await this.getClient()
+    
+    // Get team - use provided or auto-select first available
+    let team
+    if (teamId) {
+      team = await client.team(teamId)
+    } else {
+      const teams = await client.teams({ first: 1 })
+      team = teams.nodes[0]
+    }
+    
+    if (!team) throw new Error('No team found')
+    
+    // Get labels for the team
+    const labels = await team.labels()
+    return labels.nodes.map(node => node)
   }
 }
 
