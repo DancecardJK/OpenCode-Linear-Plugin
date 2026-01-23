@@ -736,23 +736,7 @@ export class LinearCRUD {
     return issues.nodes.map(node => node)
   }
 
-  /**
-   * List comments on a project
-   * Note: Project comments are typically associated with project updates,
-   * not directly with projects themselves.
-   * 
-   * @param projectId - Project ID
-   * @param first - Maximum number of comments to return (default: 50)
-   * @returns Array of comments
-   */
-  async listProjectComments(projectId: string, first = 50): Promise<Comment[]> {
-    const client = await this.getClient()
-    const project = await client.project(projectId)
-    if (!project) throw new Error(`Project ${projectId} not found`)
-    
-    const comments = await project.comments({ first })
-    return comments.nodes.map(node => node)
-  }
+
 
   // ==================== PROJECT MILESTONE OPERATIONS ====================
 
