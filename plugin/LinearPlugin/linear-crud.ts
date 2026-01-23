@@ -563,6 +563,303 @@ export class LinearCRUD {
     await relation.delete()
     return true
   }
+
+  // ==================== PROJECT CRUD OPERATIONS ====================
+
+  /**
+   * Create a new project
+   * 
+   * @param data - Project creation data
+   * @returns Created project or undefined if creation fails
+   */
+  async createProject(data: {
+    name: string
+    teamIds: string[]
+    description?: string
+    content?: string
+    color?: string
+    icon?: string
+    leadId?: string
+    memberIds?: string[]
+    labelIds?: string[]
+    priority?: number
+    startDate?: string
+    targetDate?: string
+    statusId?: string
+  }): Promise<Project | undefined> {
+    const client = await this.getClient()
+    
+    const projectData: any = {
+      name: data.name,
+      teamIds: data.teamIds,
+      description: data.description,
+      content: data.content,
+      color: data.color,
+      icon: data.icon,
+      priority: data.priority,
+      startDate: data.startDate,
+      targetDate: data.targetDate
+    }
+
+    if (data.leadId) projectData.leadId = data.leadId
+    if (data.memberIds) projectData.memberIds = data.memberIds
+    if (data.labelIds) projectData.labelIds = data.labelIds
+    if (data.statusId) projectData.statusId = data.statusId
+
+    const result = await client.createProject(projectData)
+    return result.project
+  }
+
+  /**
+   * Get a project by ID
+   * 
+   * @param projectId - Project ID
+   * @returns Project or null if not found
+   */
+  async getProject(projectId: string): Promise<Project | null> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    return project ?? null
+  }
+
+  /**
+   * Update an existing project
+   * 
+   * @param projectId - Project ID to update
+   * @param data - Fields to update (all optional)
+   * @param options - Operation options (force to skip safety checks)
+   * @returns Updated project or undefined if update fails
+   * @throws Error if project not found or if safety check fails
+   */
+  async updateProject(projectId: string, data: {
+    name?: string
+    description?: string
+    content?: string
+    color?: string
+    icon?: string
+    leadId?: string
+    memberIds?: string[]
+    labelIds?: string[]
+    priority?: number
+    startDate?: string
+    targetDate?: string
+    statusId?: string
+    teamIds?: string[]
+  }, options?: OperationOptions): Promise<Project | undefined> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+
+    // Safety check: verify current user is the project lead
+    await this.checkOwnership(project.leadId, 'project', projectId, options)
+
+    const updateData: any = {}
+    
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.content !== undefined) updateData.content = data.content
+    if (data.color !== undefined) updateData.color = data.color
+    if (data.icon !== undefined) updateData.icon = data.icon
+    if (data.leadId !== undefined) updateData.leadId = data.leadId
+    if (data.memberIds !== undefined) updateData.memberIds = data.memberIds
+    if (data.labelIds !== undefined) updateData.labelIds = data.labelIds
+    if (data.priority !== undefined) updateData.priority = data.priority
+    if (data.startDate !== undefined) updateData.startDate = data.startDate
+    if (data.targetDate !== undefined) updateData.targetDate = data.targetDate
+    if (data.statusId !== undefined) updateData.statusId = data.statusId
+    if (data.teamIds !== undefined) updateData.teamIds = data.teamIds
+
+    const result = await client.updateProject(projectId, updateData)
+    return result.project
+  }
+
+  /**
+   * Delete a project
+   * 
+   * @param projectId - Project ID to delete
+   * @param options - Operation options (force to skip safety checks)
+   * @returns True if deleted, false if not found
+   * @throws Error if safety check fails
+   */
+  async deleteProject(projectId: string, options?: OperationOptions): Promise<boolean> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    if (!project) return false
+
+    // Safety check: verify current user is the project lead
+    await this.checkOwnership(project.leadId, 'project', projectId, options)
+
+    await client.deleteProject(projectId)
+    return true
+  }
+
+  /**
+   * List projects with optional filtering
+   * 
+   * @param filter - Optional filter (e.g., { lead: { isMe: { eq: true } } })
+   * @param first - Maximum number of projects to return (default: 50)
+   * @returns Array of projects
+   */
+  async listProjects(filter?: any, first = 50): Promise<Project[]> {
+    const client = await this.getClient()
+    const projects = await client.projects({ filter, first })
+    return projects.nodes.map(node => node)
+  }
+
+  /**
+   * List projects where current user is the lead
+   * 
+   * @param first - Maximum number of projects to return (default: 50)
+   * @returns Array of projects
+   */
+  async listMyProjects(first = 50): Promise<Project[]> {
+    return this.listProjects({
+      lead: {
+        isMe: { eq: true }
+      }
+    }, first)
+  }
+
+  /**
+   * List issues in a project
+   * 
+   * @param projectId - Project ID
+   * @param first - Maximum number of issues to return (default: 50)
+   * @returns Array of issues
+   */
+  async listProjectIssues(projectId: string, first = 50): Promise<Issue[]> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+    
+    const issues = await project.issues({ first })
+    return issues.nodes.map(node => node)
+  }
+
+  /**
+   * List comments on a project
+   * Note: Project comments are typically associated with project updates,
+   * not directly with projects themselves.
+   * 
+   * @param projectId - Project ID
+   * @param first - Maximum number of comments to return (default: 50)
+   * @returns Array of comments
+   */
+  async listProjectComments(projectId: string, first = 50): Promise<Comment[]> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+    
+    const comments = await project.comments({ first })
+    return comments.nodes.map(node => node)
+  }
+
+  // ==================== PROJECT MILESTONE OPERATIONS ====================
+
+  /**
+   * Create a project milestone
+   * 
+   * @param data - Milestone creation data
+   * @param options - Operation options (force to skip safety checks)
+   * @returns Created milestone or undefined if creation fails
+   * @throws Error if safety check fails (must be project lead)
+   */
+  async createProjectMilestone(data: {
+    name: string
+    projectId: string
+    description?: string
+    targetDate?: string
+    sortOrder?: number
+  }, options?: OperationOptions): Promise<ProjectMilestone | undefined> {
+    const client = await this.getClient()
+    
+    // Get project to check ownership
+    const project = await client.project(data.projectId)
+    if (!project) throw new Error(`Project ${data.projectId} not found`)
+    
+    // Safety check: verify current user is the project lead
+    await this.checkOwnership(project.leadId, 'project (for creating milestones)', data.projectId, options)
+    
+    const result = await client.createProjectMilestone({
+      name: data.name,
+      projectId: data.projectId,
+      description: data.description,
+      targetDate: data.targetDate,
+      sortOrder: data.sortOrder
+    })
+    
+    return result.projectMilestone
+  }
+
+  /**
+   * Update a project milestone
+   * 
+   * @param milestoneId - Milestone ID
+   * @param data - Fields to update
+   * @param options - Operation options (force to skip safety checks)
+   * @returns Updated milestone or undefined if update fails
+   * @throws Error if milestone not found or if safety check fails
+   */
+  async updateProjectMilestone(milestoneId: string, data: {
+    name?: string
+    description?: string
+    targetDate?: string
+    sortOrder?: number
+  }, options?: OperationOptions): Promise<ProjectMilestone | undefined> {
+    const client = await this.getClient()
+    const milestone = await client.projectMilestone(milestoneId)
+    if (!milestone) throw new Error(`Milestone ${milestoneId} not found`)
+    
+    // Get project to check ownership
+    const project = await milestone.project
+    if (!project) throw new Error(`Project for milestone ${milestoneId} not found`)
+    
+    // Safety check: verify current user is the project lead
+    await this.checkOwnership(project.leadId, 'project milestone', milestoneId, options)
+    
+    const result = await client.updateProjectMilestone(milestoneId, data)
+    return result.projectMilestone
+  }
+
+  /**
+   * Delete a project milestone
+   * 
+   * @param milestoneId - Milestone ID
+   * @param options - Operation options (force to skip safety checks)
+   * @returns True if deleted, false if not found
+   * @throws Error if safety check fails
+   */
+  async deleteProjectMilestone(milestoneId: string, options?: OperationOptions): Promise<boolean> {
+    const client = await this.getClient()
+    const milestone = await client.projectMilestone(milestoneId)
+    if (!milestone) return false
+    
+    // Get project to check ownership
+    const project = await milestone.project
+    if (!project) throw new Error(`Project for milestone ${milestoneId} not found`)
+    
+    // Safety check: verify current user is the project lead
+    await this.checkOwnership(project.leadId, 'project milestone', milestoneId, options)
+    
+    await client.deleteProjectMilestone(milestoneId)
+    return true
+  }
+
+  /**
+   * List milestones for a project
+   * 
+   * @param projectId - Project ID
+   * @param first - Maximum number of milestones to return (default: 50)
+   * @returns Array of milestones
+   */
+  async listProjectMilestones(projectId: string, first = 50): Promise<ProjectMilestone[]> {
+    const client = await this.getClient()
+    const project = await client.project(projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+    
+    const milestones = await project.projectMilestones({ first })
+    return milestones.nodes.map(node => node)
+  }
 }
 
 /**
