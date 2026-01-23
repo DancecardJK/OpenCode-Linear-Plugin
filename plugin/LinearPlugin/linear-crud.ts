@@ -12,12 +12,45 @@
  * - Keep error handling simple and informative
  */
 
-import { LinearClient, Issue, Comment, WorkflowState, IssueLabel, IssueRelation } from '@linear/sdk'
+import { LinearClient, Issue, Comment, WorkflowState, IssueLabel, IssueRelation, User, Project, ProjectMilestone, IssueRelationType } from '@linear/sdk'
 import { getLinearClient } from './linear-auth'
+
+/**
+ * Configuration options for LinearCRUD operations
+ */
+export interface LinearCRUDOptions {
+  /** Enable safety checks for ownership/permissions (default: true) */
+  enableSafetyChecks?: boolean
+}
+
+/**
+ * Options for individual CRUD operations
+ */
+export interface OperationOptions {
+  /** Force operation even if safety checks fail (default: false) */
+  force?: boolean
+}
 
 export class LinearCRUD {
   /** Cached Linear client instance to avoid repeated auth checks */
   private client: LinearClient | null = null
+  
+  /** Cached current user to avoid repeated fetches */
+  private currentUser: User | null = null
+  
+  /** Configuration options */
+  private options: LinearCRUDOptions
+
+  /**
+   * Create a new LinearCRUD instance
+   * @param options - Configuration options
+   */
+  constructor(options: LinearCRUDOptions = {}) {
+    this.options = {
+      enableSafetyChecks: true,
+      ...options
+    }
+  }
 
   /**
    * Get authenticated Linear client
@@ -28,6 +61,48 @@ export class LinearCRUD {
     this.client ??= await getLinearClient()
     if (!this.client) throw new Error('Linear client not available')
     return this.client
+  }
+
+  /**
+   * Get the current authenticated user
+   * Cached after first fetch to avoid repeated API calls
+   * @returns Current user
+   */
+  async getCurrentUser(): Promise<User> {
+    if (!this.currentUser) {
+      const client = await this.getClient()
+      this.currentUser = await client.viewer
+    }
+    return this.currentUser
+  }
+
+  /**
+   * Check if current user owns/created an entity
+   * @param creatorId - The creator/owner ID to check
+   * @param entityType - Type of entity for error message
+   * @param entityId - Entity ID for error message
+   * @param options - Operation options
+   * @throws Error if safety check fails
+   */
+  private async checkOwnership(
+    creatorId: string | undefined,
+    entityType: string,
+    entityId: string,
+    options?: OperationOptions
+  ): Promise<void> {
+    // Skip check if safety disabled globally or force flag set
+    if (!this.options.enableSafetyChecks || options?.force) {
+      return
+    }
+
+    const currentUser = await this.getCurrentUser()
+    
+    if (!creatorId || creatorId !== currentUser.id) {
+      throw new Error(
+        `Cannot modify ${entityType} ${entityId}: You are not the creator/owner. ` +
+        `Use force: true to override this safety check.`
+      )
+    }
   }
 
   // ==================== ISSUE CRUD OPERATIONS ====================
@@ -108,8 +183,9 @@ export class LinearCRUD {
    * 
    * @param issueId - Issue to update
    * @param data - Fields to update (all optional)
+   * @param options - Operation options (force to skip safety checks)
    * @returns Updated issue or undefined if update fails
-   * @throws Error if issue not found
+   * @throws Error if issue not found or if safety check fails
    */
   async updateIssue(issueId: string, data: {
     title?: string
@@ -119,10 +195,13 @@ export class LinearCRUD {
     labelIds?: string[]
     priority?: number
     parentId?: string
-  }): Promise<Issue | undefined> {
+  }, options?: OperationOptions): Promise<Issue | undefined> {
     const client = await this.getClient()
     const issue = await client.issue(issueId)
     if (!issue ) throw new Error(`Issue ${issueId} not found`)
+
+    // Safety check: verify current user is the creator
+    await this.checkOwnership(issue.creatorId, 'issue', issueId, options)
 
     const updateData: any = {}
 
@@ -163,12 +242,18 @@ export class LinearCRUD {
    * Delete an issue
    * 
    * @param issueId - Issue to delete
+   * @param options - Operation options (force to skip safety checks)
    * @returns True if deleted, false if issue not found
+   * @throws Error if safety check fails
    */
-  async deleteIssue(issueId: string): Promise<boolean> {
+  async deleteIssue(issueId: string, options?: OperationOptions): Promise<boolean> {
     const client = await this.getClient()
     const issue = await client.issue(issueId)
     if (!issue) return false
+    
+    // Safety check: verify current user is the creator
+    await this.checkOwnership(issue.creatorId, 'issue', issueId, options)
+    
     await issue.delete()
     return true
   }
@@ -262,13 +347,19 @@ export class LinearCRUD {
    * 
    * @param commentId - Comment to update
    * @param body - New comment content
+   * @param options - Operation options (force to skip safety checks)
    * @returns Updated comment or undefined if update fails
-   * @throws Error if comment not found
+   * @throws Error if comment not found or if safety check fails
    */
-  async updateComment(commentId: string, body: string): Promise<Comment | undefined> {
+  async updateComment(commentId: string, body: string, options?: OperationOptions): Promise<Comment | undefined> {
     const client = await this.getClient()
     const comment = await client.comment({ id: commentId })
     if (!comment) throw new Error(`Comment ${commentId} not found`)
+    
+    // Safety check: verify current user is the comment author
+    const user = await comment.user
+    await this.checkOwnership(user?.id, 'comment', commentId, options)
+    
     const result = await comment.update({ body })
     return result.comment
   }
@@ -277,12 +368,19 @@ export class LinearCRUD {
    * Delete a comment
    * 
    * @param commentId - Comment to delete
+   * @param options - Operation options (force to skip safety checks)
    * @returns True if deleted, false if comment not found
+   * @throws Error if safety check fails
    */
-  async deleteComment(commentId: string): Promise<boolean> {
+  async deleteComment(commentId: string, options?: OperationOptions): Promise<boolean> {
     const client = await this.getClient()
     const comment = await client.comment({ id: commentId })
     if (!comment) return false
+    
+    // Safety check: verify current user is the comment author
+    const user = await comment.user
+    await this.checkOwnership(user?.id, 'comment', commentId, options)
+    
     await comment.delete()
     return true
   }
@@ -386,13 +484,15 @@ export class LinearCRUD {
    * Create an issue relation (blocks, duplicate, related, similar)
    * 
    * @param data - Relation creation data
+   * @param options - Operation options (force to skip safety checks)
    * @returns Created issue relation or undefined if creation fails
+   * @throws Error if safety check fails
    */
   async createRelation(data: {
     issueId: string
     relatedIssueId: string
-    type: 'blocks' | 'duplicate' | 'related' | 'similar'
-  }): Promise<IssueRelation | undefined> {
+    type: IssueRelationType | 'blocks' | 'duplicate' | 'related' | 'similar'
+  }, options?: OperationOptions): Promise<IssueRelation | undefined> {
     const client = await this.getClient()
     
     // Verify both issues exist
@@ -402,10 +502,13 @@ export class LinearCRUD {
     const relatedIssue = await client.issue(data.relatedIssueId)
     if (!relatedIssue) throw new Error(`Related issue ${data.relatedIssueId} not found`)
     
+    // Safety check: verify current user is the creator of the source issue
+    await this.checkOwnership(issue.creatorId, 'issue (for creating relations)', data.issueId, options)
+    
     const result = await client.createIssueRelation({
       issueId: data.issueId,
       relatedIssueId: data.relatedIssueId,
-      type: data.type
+      type: data.type as IssueRelationType
     })
     
     return result.issueRelation
@@ -444,12 +547,19 @@ export class LinearCRUD {
    * Delete an issue relation
    * 
    * @param relationId - Relation ID to delete
+   * @param options - Operation options (force to skip safety checks)
    * @returns True if deleted, false if relation not found
+   * @throws Error if safety check fails
    */
-  async deleteRelation(relationId: string): Promise<boolean> {
+  async deleteRelation(relationId: string, options?: OperationOptions): Promise<boolean> {
     const client = await this.getClient()
     const relation = await client.issueRelation(relationId)
     if (!relation) return false
+    
+    // Safety check: verify current user created the source issue that has this relation
+    const issue = await relation.issue
+    await this.checkOwnership(issue?.creatorId, 'issue relation', relationId, options)
+    
     await relation.delete()
     return true
   }
