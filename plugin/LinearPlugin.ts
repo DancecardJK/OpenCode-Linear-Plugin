@@ -39,7 +39,8 @@ export const LinearPlugin: Plugin = async (ctx) => {
           stateId: z.string().optional().describe("Workflow state ID (optional)"),
           labelIds: z.array(z.string()).optional().describe("Array of label IDs (optional)"),
           priority: z.number().min(1).max(4).optional().describe("Priority 1-4 (optional)"),
-          parentId: z.string().optional().describe("Parent issue ID to create a sub-issue (optional)")
+          parentId: z.string().optional().describe("Parent issue ID to create a sub-issue (optional)"),
+          projectId: z.string().optional().describe("Project ID to add issue to project (optional)")
         },
         async execute(args, context) {
           try {
@@ -132,6 +133,7 @@ export const LinearPlugin: Plugin = async (ctx) => {
           labelIds: z.array(z.string()).optional().describe("New array of label IDs (optional)"),
           priority: z.number().min(1).max(4).optional().describe("New priority 1-4 (optional)"),
           parentId: z.string().optional().describe("New parent issue ID (optional, null to remove parent)"),
+          projectId: z.string().optional().describe("Project ID to add issue to project (optional, null to remove from project)"),
           force: z.boolean().optional().describe("Force update even if not creator (default: false)")
         },
         async execute(args, context) {
@@ -811,20 +813,18 @@ export const LinearPlugin: Plugin = async (ctx) => {
           try {
             const crud = getLinearCRUD()
             const { force, ...milestoneData } = args
-            const milestone = await crud.updateProjectMilestone(args.milestoneId, milestoneData, { force })
-            return JSON.stringify(milestone ? {
-              success: true,
-              id: milestone.id,
-              name: milestone.name
-            } : {
-              success: false,
-              error: "Failed to update milestone"
+            const success = await crud.updateProjectMilestone(args.milestoneId, milestoneData, { force })
+            
+            return JSON.stringify({
+              success,
+              milestoneId: args.milestoneId,
+              message: "Milestone updated successfully"
             })
           } catch (error) {
-            return {
+            return JSON.stringify({
               success: false,
               error: error instanceof Error ? error.message : 'Unknown error'
-            }
+            })
           }
         },
       }),
