@@ -12,7 +12,7 @@
  * - Keep error handling simple and informative
  */
 
-import { LinearClient, Issue, Comment, WorkflowState, IssueLabel } from '@linear/sdk'
+import { LinearClient, Issue, Comment, WorkflowState, IssueLabel, IssueRelation } from '@linear/sdk'
 import { getLinearClient } from './linear-auth'
 
 export class LinearCRUD {
@@ -49,6 +49,7 @@ export class LinearCRUD {
     stateId?: string
     labelIds?: string[]
     priority?: number
+    parentId?: string
   }): Promise<Issue | undefined> {
     const client = await this.getClient()
     
@@ -69,6 +70,11 @@ export class LinearCRUD {
     // Use optional chaining to handle optional relationships gracefully
     issueData.assigneeId = data.assigneeId ? (await client.user(data.assigneeId))?.id : undefined
     issueData.stateId = data.stateId ? (await client.workflowState(data.stateId))?.id : undefined
+    
+    // Handle parent relationship for sub-issues
+    if (data.parentId) {
+      issueData.parentId = (await client.issue(data.parentId))?.id
+    }
     
     // Handle labels array - filter out invalid labels
     if (data.labelIds?.length) {
@@ -112,6 +118,7 @@ export class LinearCRUD {
     stateId?: string
     labelIds?: string[]
     priority?: number
+    parentId?: string
   }): Promise<Issue | undefined> {
     const client = await this.getClient()
     const issue = await client.issue(issueId)
@@ -131,6 +138,11 @@ export class LinearCRUD {
     updateData.stateId = data.stateId 
       ? (await client.workflowState(data.stateId))?.id 
       : data.stateId === null ? null : undefined
+
+    // Handle parent relationship - null removes parent, undefined doesn't change
+    updateData.parentId = data.parentId
+      ? (await client.issue(data.parentId))?.id
+      : data.parentId === null ? null : undefined
 
     // Handle labels - empty array removes all labels
     if (data.labelIds !== undefined) {
@@ -349,6 +361,97 @@ export class LinearCRUD {
     // Get labels for the team
     const labels = await team.labels()
     return labels.nodes.map(node => node)
+  }
+
+  // ==================== ISSUE RELATIONSHIP OPERATIONS ====================
+
+  /**
+   * List child issues (sub-issues) of a parent issue
+   * 
+   * @param parentId - Parent issue ID
+   * @param first - Maximum number of children to return (default: 50)
+   * @returns Array of child issues
+   * @throws Error if parent issue not found
+   */
+  async listChildren(parentId: string, first = 50): Promise<Issue[]> {
+    const client = await this.getClient()
+    const parent = await client.issue(parentId)
+    if (!parent) throw new Error(`Issue ${parentId} not found`)
+    
+    const children = await parent.children({ first })
+    return children.nodes.map(node => node)
+  }
+
+  /**
+   * Create an issue relation (blocks, duplicate, related, similar)
+   * 
+   * @param data - Relation creation data
+   * @returns Created issue relation or undefined if creation fails
+   */
+  async createRelation(data: {
+    issueId: string
+    relatedIssueId: string
+    type: 'blocks' | 'duplicate' | 'related' | 'similar'
+  }): Promise<IssueRelation | undefined> {
+    const client = await this.getClient()
+    
+    // Verify both issues exist
+    const issue = await client.issue(data.issueId)
+    if (!issue) throw new Error(`Issue ${data.issueId} not found`)
+    
+    const relatedIssue = await client.issue(data.relatedIssueId)
+    if (!relatedIssue) throw new Error(`Related issue ${data.relatedIssueId} not found`)
+    
+    const result = await client.createIssueRelation({
+      issueId: data.issueId,
+      relatedIssueId: data.relatedIssueId,
+      type: data.type
+    })
+    
+    return result.issueRelation
+  }
+
+  /**
+   * List issue relations for an issue
+   * 
+   * @param issueId - Issue ID
+   * @param direction - 'from' (relations FROM this issue), 'to' (relations TO this issue), or 'both'
+   * @param first - Maximum number of relations to return (default: 50)
+   * @returns Array of issue relations
+   * @throws Error if issue not found
+   */
+  async listRelations(issueId: string, direction: 'from' | 'to' | 'both' = 'both', first = 50): Promise<IssueRelation[]> {
+    const client = await this.getClient()
+    const issue = await client.issue(issueId)
+    if (!issue) throw new Error(`Issue ${issueId} not found`)
+    
+    const relations: IssueRelation[] = []
+    
+    if (direction === 'from' || direction === 'both') {
+      const fromRelations = await issue.relations({ first })
+      relations.push(...fromRelations.nodes.map(node => node))
+    }
+    
+    if (direction === 'to' || direction === 'both') {
+      const toRelations = await issue.inverseRelations({ first })
+      relations.push(...toRelations.nodes.map(node => node))
+    }
+    
+    return relations
+  }
+
+  /**
+   * Delete an issue relation
+   * 
+   * @param relationId - Relation ID to delete
+   * @returns True if deleted, false if relation not found
+   */
+  async deleteRelation(relationId: string): Promise<boolean> {
+    const client = await this.getClient()
+    const relation = await client.issueRelation(relationId)
+    if (!relation) return false
+    await relation.delete()
+    return true
   }
 }
 

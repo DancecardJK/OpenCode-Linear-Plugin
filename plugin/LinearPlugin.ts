@@ -38,7 +38,8 @@ export const LinearPlugin: Plugin = async (ctx) => {
           assigneeId: z.string().optional().describe("Assignee ID (optional)"),
           stateId: z.string().optional().describe("Workflow state ID (optional)"),
           labelIds: z.array(z.string()).optional().describe("Array of label IDs (optional)"),
-          priority: z.number().min(1).max(4).optional().describe("Priority 1-4 (optional)")
+          priority: z.number().min(1).max(4).optional().describe("Priority 1-4 (optional)"),
+          parentId: z.string().optional().describe("Parent issue ID to create a sub-issue (optional)")
         },
         async execute(args, context) {
           try {
@@ -79,8 +80,9 @@ export const LinearPlugin: Plugin = async (ctx) => {
               })
             }
             
-            // Fetch labels for the issue
+            // Fetch labels and parent for the issue
             const labels = await issue.labels()
+            const parent = issue.parentId ? await issue.parent : null
             
             return JSON.stringify({
               success: true,
@@ -103,6 +105,11 @@ export const LinearPlugin: Plugin = async (ctx) => {
                 name: label.name,
                 color: label.color
               })),
+              parent: parent ? {
+                id: parent.id,
+                identifier: parent.identifier,
+                title: parent.title
+              } : null,
               url: issue.url
             })
           } catch (error) {
@@ -123,7 +130,8 @@ export const LinearPlugin: Plugin = async (ctx) => {
           assigneeId: z.string().optional().describe("New assignee ID (optional)"),
           stateId: z.string().optional().describe("New workflow state ID (optional)"),
           labelIds: z.array(z.string()).optional().describe("New array of label IDs (optional)"),
-          priority: z.number().min(1).max(4).optional().describe("New priority 1-4 (optional)")
+          priority: z.number().min(1).max(4).optional().describe("New priority 1-4 (optional)"),
+          parentId: z.string().optional().describe("New parent issue ID (optional, null to remove parent)")
         },
         async execute(args, context) {
           try {
@@ -283,6 +291,135 @@ export const LinearPlugin: Plugin = async (ctx) => {
                 description: label.description
               })),
               count: labels.length
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_list_children: tool({
+        description: "List child issues (sub-issues) of a parent issue",
+        args: {
+          parentId: z.string().describe("Parent issue ID"),
+          first: z.number().optional().describe("Maximum number of children to return (default: 50)")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const children = await crud.listChildren(args.parentId, args.first || 50)
+            return JSON.stringify({
+              success: true,
+              children: children.map(child => ({
+                id: child.id,
+                identifier: child.identifier,
+                title: child.title,
+                state: child.state?.name || 'Unknown',
+                assignee: child.assignee?.name || 'Unassigned',
+                url: child.url
+              })),
+              count: children.length
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_create_relation: tool({
+        description: "Create an issue relation (blocks, duplicate, related, similar)",
+        args: {
+          issueId: z.string().describe("Issue ID that has the relation"),
+          relatedIssueId: z.string().describe("Related issue ID"),
+          type: z.enum(['blocks', 'duplicate', 'related', 'similar']).describe("Relation type: blocks, duplicate, related, or similar")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const relation = await crud.createRelation(args)
+            return JSON.stringify(relation ? {
+              success: true,
+              id: relation.id,
+              type: relation.type,
+              createdAt: relation.createdAt
+            } : {
+              success: false,
+              error: "Failed to create relation"
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_list_relations: tool({
+        description: "List issue relations for an issue",
+        args: {
+          issueId: z.string().describe("Issue ID"),
+          direction: z.enum(['from', 'to', 'both']).optional().describe("Direction: 'from' (relations FROM this issue), 'to' (relations TO this issue), or 'both' (default: both)"),
+          first: z.number().optional().describe("Maximum number of relations to return (default: 50)")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const relations = await crud.listRelations(args.issueId, args.direction || 'both', args.first || 50)
+            
+            // Fetch issue details for each relation
+            const relationsWithDetails = await Promise.all(relations.map(async (relation) => {
+              const issue = await relation.issue
+              const relatedIssue = await relation.relatedIssue
+              return {
+                id: relation.id,
+                type: relation.type,
+                issue: {
+                  id: issue.id,
+                  identifier: issue.identifier,
+                  title: issue.title
+                },
+                relatedIssue: {
+                  id: relatedIssue.id,
+                  identifier: relatedIssue.identifier,
+                  title: relatedIssue.title
+                },
+                createdAt: relation.createdAt
+              }
+            }))
+            
+            return JSON.stringify({
+              success: true,
+              relations: relationsWithDetails,
+              count: relationsWithDetails.length
+            })
+          } catch (error) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        },
+      }),
+
+      linear_delete_relation: tool({
+        description: "Delete an issue relation",
+        args: {
+          relationId: z.string().describe("Relation ID to delete")
+        },
+        async execute(args, context) {
+          try {
+            const crud = getLinearCRUD()
+            const deleted = await crud.deleteRelation(args.relationId)
+            return JSON.stringify({
+              success: deleted,
+              message: deleted ? "Relation deleted successfully" : "Relation not found"
             })
           } catch (error) {
             return {
